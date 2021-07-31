@@ -3,8 +3,13 @@ title: "Examen de estadística multivariable"
 author: "Luis Enrique García Gómez y Sergio Eduardo Rodríguez Tinoco"
 output: html_notebook
 ---
+<center> <h1> Análisis estadístico multivariado de los pokemon hasta 8tava generación </h1> </center>
 
-### Base de datos
+### Introducción:
+
+### Objetivo:
+
+### Métodos:
 
 La base de datos original está disponible en <https://www.kaggle.com/brendan45774/pokmon-index-database?select=pokemon.csv>.
 
@@ -12,8 +17,13 @@ Importar datos y filtrar para obtener una base de datos de 7 variables cuantitat
 
 Pokémons con un total de puntos mayor a 550 y puntos de salud mayores a 100.
 
+### Paqueterias con utilizadas:
+
+Si existe problemas con la instalacion de la paquetería ggalt se recomienda consultar: <https://community.rstudio.com/t/install-ggalt-from-github-without-installing-proj4/35260>
+
+Cargamos los datos originales y realizamos una limpieza de los mismos.
 ```{r}
-pokemon <- read.csv("/cloud/project/pokemon.csv")
+pokemon <- read.csv("pokemon.csv")
 library(dplyr)
 pok<-pokemon%>%
   filter(Total>550, HP>100)%>%
@@ -21,8 +31,7 @@ pok<-pokemon%>%
   distinct(Name, .keep_all = TRUE)
 pok
 ```
-
-### Estadística descriptiva
+### Estadística descriptiva.
 
 #### Medidas de tendencia central, cuartiles y medidas de dispersión
 
@@ -66,17 +75,13 @@ boxplot(pok.scale$Total, pok.scale$HP, pok.scale$Attack, pok.scale$Defense, pok.
         pok.scale$Special.Defense, pok.scale$Speed, names = names(pok.scale))
 ```
 
-Observaciones:
+### Observaciones:
 
-Total tiene datos atípicos y está sesgada a la izquierda.
-
-HP está sesgada a la derecha.
-
-Attack y Deffense parecen ser distribuciones normales.
-
-Special.Attack tiene un dato atípico, Special.Defense parece tener un sesgo a la derecha y Speed tiene tres datos atípicos.
-
-Las medianas de todas las variables en general no parecen ser diferentes entre si (esto puede comprobarse con otro análisis).
+- Total tiene datos atípicos y está sesgada a la izquierda.
+- HP está sesgada a la derecha.
+- Attack y Deffense parecen ser distribuciones normales.
+- Special.Attack tiene un dato atípico, Special.Defense parece tener un sesgo a la derecha y Speed tiene tres datos atípicos.
+- Las medianas de todas las variables en general no parecen ser diferentes entre si (esto puede comprobarse con otro análisis).
 
 
 
@@ -129,7 +134,92 @@ Sin estandarizar
 ```{r}
 ggplot(pok,aes(Attack, Total, color=Special.Attack, size=Speed))+geom_point()
 ```
+### Analisis de Clúster
+```{r}
+# Cluster
+pokCluster<-scale(pok[,4:9])
+rownames(pokCluster) <- pok$Name
+#calcular la matriz de distacias
+m.distancia <- get_dist(pokCluster, method =  "euclidean")
+#el método aceptado también puede ser: "maximum", "manhattan", "canberra", "binary", "minkowski", "pearson", "spearman" o "kendall"
+fviz_dist(m.distancia, gradient = list(low = "blue", mid = "white", high = "red"))
+```
+### Estimar el número de clústers
 
+Para calcular el número optimo de clústers usaremos varios metodos para tomar dicha decision.
+
+#### Metodo con suma de cuadrados (Elbow)
+```{r}
+# (apunta a 3 clusters, con la "rodilla o punto de corte)
+fviz_nbclust(pokCluster, kmeans, method = "wss")
+```
+#### Metodo de la silueta.
+```{r}
+# Metodo de la silueta
+# (apunta a 9 clusters y seguido de 3)
+fviz_nbclust(pokCluster, kmeans, method = "silhouette")
+```
+### Metodo estadistico Gap
+```{r}
+# Gap statistic for hierarchical clustering
+fviz_nbclust(pokCluster, kmeans, method = "gap_stat")
+```
+```{r}
+#Con esta función se pueden calcular:
+#the index to be calculated. This should be one of : "kl", "ch", "hartigan", "ccc", "scott",
+#"marriot", "trcovw", "tracew", "friedman", "rubin", "cindex", "db", "silhouette", "duda",
+#"pseudot2", "beale", "ratkowsky", "ball", "ptbiserial", "gap", "frey", "mcclain", "gamma",
+#"gplus", "tau", "dunn", "hubert", "sdindex", "dindex", "sdbw", "all" (all indices except GAP,
+#Gamma, Gplus and Tau), "alllong" (all indices with Gap, Gamma, Gplus and Tau included).
+pokCluster<-as.data.frame(pokCluster)
+resnumclust <- NbClust(pokCluster, distance = "euclidean", min.nc=2, max.nc=10, method = "kmeans", index = "alllong")
+fviz_nbclust(resnumclust)
+
+```
+Con esta informacion, junto con todos los graficos con su respectivo metodo, se optara por elegir 3 clusters.
+
+### calculamos los tres clústers
+
+```{r}
+#calculamos los tres clústers
+k3 <- kmeans(pokCluster, centers = 3, nstart = 25)
+k3
+str(k3)
+
+fviz_cluster(k3, data = pokCluster)
+fviz_cluster(k3, data = pokCluster, ellipse.type = "euclid",repel = TRUE,star.plot = TRUE) #ellipse.type= "t", "norm", "euclid"
+```
+```{r}
+# Realizar un endograma
+res3 <- hcut(pokCluster, k = 3, stand = TRUE)
+fviz_dend(res3, rect = TRUE, cex = 0.5,k_colors = c(1:3))
+```
+
+```{r}
+# Informacion medias por cluster no estandarizados 
+pok[,3:9] %>%
+    mutate(Cluster = k3$cluster) %>%
+    group_by(Cluster) %>%
+    summarise_all("mean")
+
+# Informacion medias por cluster estandarizados 
+pokCluster %>%
+    mutate(Cluster = k3$cluster) %>%
+    group_by(Cluster) %>%
+    summarise_all("mean")
+```
+
+```{r}
+#  Vizualizacion con datos alargados y usando los Closter creados
+pokCluster$clus<-factor(pokCluster$clus)
+data_long <- gather(pokCluster, caracteristica, valor, HP:Speed, factor_key=TRUE)
+data_long
+
+ggplot(data_long, aes(as.factor(x = caracteristica), y = valor,group=clus, colour = clus)) + 
+    stat_summary(fun = mean, geom="pointrange", size = 1)+
+    stat_summary(geom="line") +
+    geom_point(aes(shape=clus))
+```
 ### Clúster jerárquico
 
 Usando distancias euclideanas y método de medias
