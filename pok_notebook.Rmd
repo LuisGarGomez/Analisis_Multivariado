@@ -1,0 +1,215 @@
+---
+title: "Examen de estadística multivariable"
+author: "Luis Enrique García Gómez y Sergio Eduardo Rodríguez Tinoco"
+output: html_notebook
+---
+
+### Base de datos
+
+La base de datos original está disponible en <https://www.kaggle.com/brendan45774/pokmon-index-database?select=pokemon.csv>.
+
+Importar datos y filtrar para obtener una base de datos de 7 variables cuantitativas y dos categóricas (en total son 22 registros después de filtrar).
+
+Pokémons con un total de puntos mayor a 550 y puntos de salud mayores a 100.
+
+```{r}
+pokemon <- read.csv("/cloud/project/pokemon.csv")
+library(dplyr)
+pok<-pokemon%>%
+  filter(Total>550, HP>100)%>%
+  select(Name:Speed)%>%
+  distinct(Name, .keep_all = TRUE)
+pok
+```
+
+### Estadística descriptiva
+
+#### Medidas de tendencia central, cuartiles y medidas de dispersión
+
+```{r}
+stdev<-pok%>%summarise(sd(Total), sd(HP), sd(Attack), sd(Defense), sd(Special.Attack), sd(Special.Defense), sd(Speed))
+names(stdev)<-names(pok[,3:9])
+varianza<-stdev^2
+```
+
+```{r}
+summary(pok[,3:9])
+```
+Varianza
+```{r}
+varianza
+```
+Desviación estándar
+
+```{r}
+stdev
+```
+
+
+#### Estandarización porque se desconoce si las variables están en la misma escala
+
+```{r}
+pok.scale<-scale(pok[,3:9])
+pok.scale<-as.data.frame(pok.scale)
+```
+
+
+#### Medidas de tendencia central y cuartiles con los datos estandarizados
+
+```{r}
+summary(pok.scale)
+```
+#### Gráficas de caja y bigotes
+
+```{r}
+boxplot(pok.scale$Total, pok.scale$HP, pok.scale$Attack, pok.scale$Defense, pok.scale$Special.Attack,
+        pok.scale$Special.Defense, pok.scale$Speed, names = names(pok.scale))
+```
+
+Observaciones:
+
+Total tiene datos atípicos y está sesgada a la izquierda.
+
+HP está sesgada a la derecha.
+
+Attack y Deffense parecen ser distribuciones normales.
+
+Special.Attack tiene un dato atípico, Special.Defense parece tener un sesgo a la derecha y Speed tiene tres datos atípicos.
+
+Las medianas de todas las variables en general no parecen ser diferentes entre si (esto puede comprobarse con otro análisis).
+
+
+
+### Pruebas para elegir el tipo de análisis multivariable
+
+#### Pruebas de normalidad
+
+```{r}
+shapiro.test(pok.scale$Total)
+shapiro.test(pok.scale$HP)
+shapiro.test(pok.scale$Attack)
+shapiro.test(pok.scale$Defense)
+shapiro.test(pok.scale$Special.Attack)
+shapiro.test(pok.scale$Special.Defense)
+shapiro.test(pok.scale$Speed)
+```
+Los datos de Total, HP, Special.Defense y Speed no se distribuyen normalmente por lo que los análisis serán no paramétricos.
+
+### Correlación (Kendall)
+
+```{r}
+mat_cor<-cor(x=pok.scale, method="kendall")
+mat_cor
+```
+
+```{r}
+library(corrplot)
+corrplot(mat_cor, method="ellipse", type="upper")
+```
+Total, Attack, Special.Attack y Speed están correlacionados positivamente entre sí, por lo que estas variables pueden servir para hacer un análisis de clusters.
+
+```{r}
+pok.scale.2 <- pok.scale%>%select(Total, Attack, Special.Attack, Speed)
+mat_cor2<-cor(pok.scale.2, method="kendall" )
+corrplot(mat_cor2, method = "ellipse", type = "upper")
+```
+
+### Visualización de los datos 
+
+```{r}
+library(ggplot2)
+```
+
+Estandarizados
+```{r}
+ggplot(pok.scale.2,aes(Attack, Total, color=Special.Attack, size=Speed))+geom_point()
+```
+Sin estandarizar
+
+```{r}
+ggplot(pok,aes(Attack, Total, color=Special.Attack, size=Speed))+geom_point()
+```
+
+### Clúster jerárquico
+
+Usando distancias euclideanas y método de medias
+
+```{r}
+dpok2<-dist(pok.scale.2, method = "euclidean")
+clusterpok2<-hclust(dpok2, method = "average")
+plot(clusterpok2, labels=pok[,1])
+```
+
+### Visualización de datos y clusters (dependiendo de dónde se corte el dendrograma será el número de clusters)
+
+
+```{r}
+library(ggalt) #para encerrar los puntos con geom_encircle()
+library(ggrepel) #para poner etiquetas con geom_label_repel()
+
+#cortar el dendrograma
+asignaciones<-cutree(clusterpok2, h=2.6)
+pok.clustered<- pok%>%select(Total, Attack, Special.Attack, Speed, Type, Name)%>%mutate(cluster=asignaciones)
+
+#visualizar
+ggplot(pok.clustered,aes(Attack, Total, color=Special.Attack, size=Speed))+
+  geom_point()+
+  geom_encircle(group=factor(asignaciones), spread=1e-2, expand=0.04)+
+  geom_label_repel(label=pok$Name, max.overlaps = 15, alpha=0.6)
+```
+### Visualización del dendrograma con el corte
+
+```{r}
+library(dendextend)
+dendrograma<-as.dendrogram(clusterpok2)
+dendrograma_color<-color_branches(dendrograma, h=2.6)
+plot(dendrograma_color)
+```
+
+### Contar los pokémons de cada tipo por cluster
+
+
+#### Clúster 1
+
+```{r}
+cluster1 <- pok.clustered %>% filter(cluster==1)
+glimpse(cluster1)
+```
+
+
+```{r}
+cluster1 %>% count(Type, sort=T)
+```
+
+
+#### Clúster 2
+
+```{r}
+cluster2 <- pok.clustered %>% filter(cluster==2)
+glimpse(cluster2)
+```
+
+```{r}
+cluster2 %>% count(Type, sort=T)
+```
+
+
+#### Clúster 3
+
+```{r}
+cluster3 <- pok.clustered %>% filter(cluster==3)
+glimpse(cluster3)
+```
+
+```{r}
+cluster3 %>% count(Type, sort=T)
+```
+
+
+### Conclusión del análisis con clúster jerárquico basado en variables correlacionadas positivamente entre sí
+
+Los pokémons en el clúster 3 tienen características que en general, comparados con los de los clústers 1 y 2 los hacen más fuertes, ambos son de tipo PSYCHIC.
+
+Dentro del clúster 2 están la mayoría de los pokémons seleccionados y puede decirse que son pokémons fuertes pero no son los más fuertes de todos los elegidos, la mayoría de este grupo son de tipo DRAGON.
+
+Por último, en el clúster 1 se encuentran los pokémons menos fuertes del grupo seleccionado (recordando: HP>100 y Total>550) y la mayoría son DRAGON o PSYCHIC.
