@@ -1,23 +1,56 @@
 ---
 title: "Examen de estadística multivariable"
 author: "Luis Enrique García Gómez y Sergio Eduardo Rodríguez Tinoco"
-output: html_notebook
+output:
+  html_notebook: default
 ---
 <center> <h1> Análisis estadístico multivariado de los pokemon hasta 8tava generación </h1> </center>
 
 ### Introducción:
 
+Pokémon, es una franquicia que originalmente comenzó como un videojuego RPG, pero debido a su popularidad ha logrado expandirse a otros medios de entretenimiento como series de televisión, películas, ropa, entre otros, convirtiéndose en una marca que es reconocida en el mercado mundial.
+
+Cuando el creador, Satoshi Tajiri, era joven, uno de sus pasatiempos favoritos era la recolección y colección de insectos; de ahí surgió la idea de los Pokémon, que son una clase de criaturas inspiradas en animales reales, insectos, objetos, plantas o criaturas mitológicas.
+
+ Los jugadores toman el papel Entrenadores Pokémon, algunos objetivos generales son completar la Pokédex mediante la captura y entrenar un equipo de Pokémon poderosos de aquellos que han atrapado para competir contra otros entrenadores.
+
 ### Objetivo:
+
+Describir a los Pokémon hasta la octava generación, ver si existe alguna relación de cómo están repartidas las estadísticas y ver si existe alguna otra forma de agrupar a los pokémon  (agrupados por el tipo: normal, agua, fantasma, fuego, etc)
 
 ### Métodos:
 
 La base de datos original está disponible en <https://www.kaggle.com/brendan45774/pokmon-index-database?select=pokemon.csv>.
 
-Importar datos y filtrar para obtener una base de datos de 7 variables cuantitativas y dos categóricas (en total son 22 registros después de filtrar).
+Importar datos y filtrar para obtener una base de datos de 7 variables cuantitativas y dos categóricas (en total son 22 registros después de filtrar), se utilizaran los metodos de analisis multivariado adecuados a los datos.
 
 Pokémons con un total de puntos mayor a 550 y puntos de salud mayores a 100.
 
-### Paqueterias con utilizadas:
+### Pokemon Legendarios:
+
+Hay que hacer un particular énfasis a los pokémon legendarios que se destacan en comparación con el resto de los Pokémon, se caracterizan sobre todo por su enorme poder.
+
+Destaquemos a uno de ellos conocido como mewtwo, al ser el resultado de un experimento que desembocó en su creación, su versión X y su versión Y ; considerado en el anime y en los videojuegos como uno de los pokémon más fuertes, se hace esta mención ya que seguramente lo podamos ver reflejado en los resultados de clusterización.
+
+<div>
+<p style = 'text-align:center;'>
+<img src="https://pm1.narvii.com/5707/81c4b403b1f3721ee31086737795826b32556379_hq.jpg" alt="JuveYell" width="450px">
+</p>
+</div>
+
+### Paqueterias utilizadas:
+
+```{r}
+ipak <- function(pkg){
+    new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+    if (length(new.pkg)) 
+        install.packages(new.pkg, dependencies = TRUE)
+    sapply(pkg, require, character.only = TRUE)
+}
+
+paquetes <- c("tidyverse","cluster","factoextra","NbClust","tidyr","dplyr","ggalt","ggrepel")
+ipak(paquetes)
+```
 
 Si existe problemas con la instalacion de la paquetería ggalt se recomienda consultar: <https://community.rstudio.com/t/install-ggalt-from-github-without-installing-proj4/35260>
 
@@ -72,7 +105,7 @@ summary(pok.scale)
 
 ```{r}
 boxplot(pok.scale$Total, pok.scale$HP, pok.scale$Attack, pok.scale$Defense, pok.scale$Special.Attack,
-        pok.scale$Special.Defense, pok.scale$Speed, names = names(pok.scale))
+        pok.scale$Special.Defense, pok.scale$Speed, names = c("Total","HP","Attack,","Defense","Sep.Att","Sep.Def","Speed"),col = rainbow(7,s = 0.65))
 ```
 
 ### Observaciones:
@@ -98,7 +131,14 @@ shapiro.test(pok.scale$Special.Attack)
 shapiro.test(pok.scale$Special.Defense)
 shapiro.test(pok.scale$Speed)
 ```
-Los datos de Total, HP, Special.Defense y Speed no se distribuyen normalmente por lo que los análisis serán no paramétricos.
+Al realizar las pruebas de normalidad podemos notar como las siguientes variables no se distribuyen normalmente:
+
+- Total.
+- HP.
+- Special.Defense.
+- Speed.
+
+Como todas las variables caracterizan al pokémon en cuestión, se realizaran análisis no paramétricos.
 
 ### Correlación (Kendall)
 
@@ -133,92 +173,6 @@ Sin estandarizar
 
 ```{r}
 ggplot(pok,aes(Attack, Total, color=Special.Attack, size=Speed))+geom_point()
-```
-### Analisis de Clúster
-```{r}
-# Cluster
-pokCluster<-scale(pok[,4:9])
-rownames(pokCluster) <- pok$Name
-#calcular la matriz de distacias
-m.distancia <- get_dist(pokCluster, method =  "euclidean")
-#el método aceptado también puede ser: "maximum", "manhattan", "canberra", "binary", "minkowski", "pearson", "spearman" o "kendall"
-fviz_dist(m.distancia, gradient = list(low = "blue", mid = "white", high = "red"))
-```
-### Estimar el número de clústers
-
-Para calcular el número optimo de clústers usaremos varios metodos para tomar dicha decision.
-
-#### Metodo con suma de cuadrados (Elbow)
-```{r}
-# (apunta a 3 clusters, con la "rodilla o punto de corte)
-fviz_nbclust(pokCluster, kmeans, method = "wss")
-```
-#### Metodo de la silueta.
-```{r}
-# Metodo de la silueta
-# (apunta a 9 clusters y seguido de 3)
-fviz_nbclust(pokCluster, kmeans, method = "silhouette")
-```
-### Metodo estadistico Gap
-```{r}
-# Gap statistic for hierarchical clustering
-fviz_nbclust(pokCluster, kmeans, method = "gap_stat")
-```
-```{r}
-#Con esta función se pueden calcular:
-#the index to be calculated. This should be one of : "kl", "ch", "hartigan", "ccc", "scott",
-#"marriot", "trcovw", "tracew", "friedman", "rubin", "cindex", "db", "silhouette", "duda",
-#"pseudot2", "beale", "ratkowsky", "ball", "ptbiserial", "gap", "frey", "mcclain", "gamma",
-#"gplus", "tau", "dunn", "hubert", "sdindex", "dindex", "sdbw", "all" (all indices except GAP,
-#Gamma, Gplus and Tau), "alllong" (all indices with Gap, Gamma, Gplus and Tau included).
-pokCluster<-as.data.frame(pokCluster)
-resnumclust <- NbClust(pokCluster, distance = "euclidean", min.nc=2, max.nc=10, method = "kmeans", index = "alllong")
-fviz_nbclust(resnumclust)
-
-```
-Con esta informacion, junto con todos los graficos con su respectivo metodo, se optara por elegir 3 clusters.
-
-### calculamos los tres clústers
-
-```{r}
-#calculamos los tres clústers
-k3 <- kmeans(pokCluster, centers = 3, nstart = 25)
-k3
-str(k3)
-
-fviz_cluster(k3, data = pokCluster)
-fviz_cluster(k3, data = pokCluster, ellipse.type = "euclid",repel = TRUE,star.plot = TRUE) #ellipse.type= "t", "norm", "euclid"
-```
-```{r}
-# Realizar un endograma
-res3 <- hcut(pokCluster, k = 3, stand = TRUE)
-fviz_dend(res3, rect = TRUE, cex = 0.5,k_colors = c(1:3))
-```
-
-```{r}
-# Informacion medias por cluster no estandarizados 
-pok[,3:9] %>%
-    mutate(Cluster = k3$cluster) %>%
-    group_by(Cluster) %>%
-    summarise_all("mean")
-
-# Informacion medias por cluster estandarizados 
-pokCluster %>%
-    mutate(Cluster = k3$cluster) %>%
-    group_by(Cluster) %>%
-    summarise_all("mean")
-```
-
-```{r}
-#  Vizualizacion con datos alargados y usando los Closter creados
-pokCluster$clus<-factor(pokCluster$clus)
-data_long <- gather(pokCluster, caracteristica, valor, HP:Speed, factor_key=TRUE)
-data_long
-
-ggplot(data_long, aes(as.factor(x = caracteristica), y = valor,group=clus, colour = clus)) + 
-    stat_summary(fun = mean, geom="pointrange", size = 1)+
-    stat_summary(geom="line") +
-    geom_point(aes(shape=clus))
 ```
 ### Clúster jerárquico
 
@@ -303,3 +257,163 @@ Los pokémons en el clúster 3 tienen características que en general, comparado
 Dentro del clúster 2 están la mayoría de los pokémons seleccionados y puede decirse que son pokémons fuertes pero no son los más fuertes de todos los elegidos, la mayoría de este grupo son de tipo DRAGON.
 
 Por último, en el clúster 1 se encuentran los pokémons menos fuertes del grupo seleccionado (recordando: HP>100 y Total>550) y la mayoría son DRAGON o PSYCHIC.
+
+### Analisis de Clúster(k-means)
+```{r}
+# Cluster
+pokCluster<-scale(pok[,4:9])
+rownames(pokCluster) <- pok$Name
+#calcular la matriz de distacias
+m.distancia <- get_dist(pokCluster, method =  "euclidean")
+#el método aceptado también puede ser: "maximum", "manhattan", "canberra", "binary", "minkowski", "pearson", "spearman" o "kendall"
+fviz_dist(m.distancia, gradient = list(low = "blue", mid = "white", high = "red"))
+```
+
+Podemos observar como se relacionan las estadisticas de cada pokemon en comparacion a todos los demas, con los colores azul, blanco y rojo, poca, mediana y mucha distancia respectivamente. 
+
+Notemos apriori tres grupos haciendo un heatmap de distancias.
+
+### Estimar el número de clústers (k-means)
+
+Para calcular el número optimo de clústers usaremos varios metodos para tomar dicha decision.
+
+#### Metodo con suma de cuadrados (Elbow)
+```{r}
+# (apunta a 3 clusters, con la "rodilla o punto de corte)
+fviz_nbclust(pokCluster, kmeans, method = "wss")
+```
+#### Metodo de la silueta.
+```{r}
+# Metodo de la silueta
+# (apunta a 9 clusters y seguido de 3)
+fviz_nbclust(pokCluster, kmeans, method = "silhouette")
+```
+### Metodo estadistico Gap
+```{r}
+# Gap statistic for hierarchical clustering
+fviz_nbclust(pokCluster, kmeans, method = "gap_stat")
+```
+```{r}
+#Con esta función se pueden calcular:
+#the index to be calculated. This should be one of : "kl", "ch", "hartigan", "ccc", "scott",
+#"marriot", "trcovw", "tracew", "friedman", "rubin", "cindex", "db", "silhouette", "duda",
+#"pseudot2", "beale", "ratkowsky", "ball", "ptbiserial", "gap", "frey", "mcclain", "gamma",
+#"gplus", "tau", "dunn", "hubert", "sdindex", "dindex", "sdbw", "all" (all indices except GAP,
+#Gamma, Gplus and Tau), "alllong" (all indices with Gap, Gamma, Gplus and Tau included).
+pokCluster<-as.data.frame(pokCluster)
+resnumclust <- NbClust(pokCluster, distance = "euclidean", min.nc=2, max.nc=10, method = "kmeans", index = "alllong")
+fviz_nbclust(resnumclust)
+
+```
+Con esta informacion junto con todos los graficos y su respectivo metodo, notemos que al menos 10 de los metodos indican un k=3, se optó por elegir tres clusters.
+
+### Calculamos los tres clústers
+
+```{r}
+#calculamos los tres clústers
+k3 <- kmeans(pokCluster, centers = 3, nstart = 25)
+k3
+str(k3)
+
+fviz_cluster(k3, data = pokCluster)
+fviz_cluster(k3, data = pokCluster, ellipse.type = "euclid",repel = TRUE,star.plot = TRUE) #ellipse.type= "t", "norm", "euclid"
+```
+
+Notemos que de los 3 clusters generados, uno de ellos esta conformado por Mewtwo, Mega Mewtwo X , Mega Mewtwo Y , como habiamos mencionado al principio, no solo a priori es considerado como de los mas fuertes a modo de creencia, si no que sus estadisticas dentro del videojuego son mayores a comparacion a los demas grupos teniendo un Cluster propio.
+
+El cluster verde podemos catalogarlos como pokemon equilibrados en cuanto a sus estadisticas y el azul como a los pokemon mas debiles de esta muestra.
+
+```{r}
+# Realizar un endograma
+res3 <- hcut(pokCluster, k = 3, stand = TRUE)
+fviz_dend(res3, rect = TRUE, cex = 0.5,k_colors = c(2:5))
+```
+
+Con este endograma notemos como se ordenan apartir de las estadisticas de los Pokemon, haciendo uso de los clusters generados que van desde los mas fuertes a los mas debiles.
+
+```{r}
+# Informacion medias por cluster no estandarizados 
+pok[,3:9] %>%
+    mutate(Cluster = k3$cluster) %>%
+    group_by(Cluster) %>%
+    summarise_all("mean")
+
+# Informacion medias por cluster estandarizados 
+pokCluster %>%
+    mutate(Cluster = k3$cluster) %>%
+    group_by(Cluster) %>%
+    summarise_all("mean")
+```
+
+```{r}
+#Pasamos las asignaciones de cluster a mi df inicial para trabajar con ellos
+# Sin Datos estandarizados
+pok$clus<-as.factor(k3$cluster)
+pok
+
+# Con Datos estandarizados
+pokCluster$clus<-as.factor(k3$cluster)
+pokCluster
+
+#  Vizualizacion con datos alargados y usando los Closter creados
+pokCluster$clus<-factor(pokCluster$clus)
+data_long <- gather(pokCluster, caracteristica, valor, HP:Speed, factor_key=TRUE)
+data_long
+
+ggplot(data_long, aes(as.factor(x = caracteristica), y = valor,group=clus, colour = clus)) + 
+    stat_summary(fun = mean, geom="pointrange", size = 1)+
+    stat_summary(geom="line") +
+    geom_point(aes(shape=clus))
+```
+
+### Conclusión de Clúster con k-means y medida de Distancia Euclidiana.
+
+Notemos que los 3 clusters y sus individuos que los conforman están graficados.
+
+- El grupo 1 (Más fuertes) : Son Pokémon con menor vida y defensa en comparación a los demás grupos pero destacan sobre los demás en su ataque, ataque especial y velocidad.
+
+- El grupo 2 (Equilibrados): De las 6 variables podemos ver como tienen poco ataque y ataque espacial, equilibrado su HP y velocidad y destacan en defensa y defensa especial en comparación a los otros grupos.
+
+- El grupo 3 (Débiles): Notemos que destacan solo en HP, por otro lado tienen poca defensa especial y velocidad.
+
+Con esta interpretación notemos el porque coincide la información del dendrograma y el gráfico de los clusters; los Pokemon de cada cluster destacan ciertos atributos y es la razón de su clustering.
+
+
+### Conclusiones de Clúster con k-means y Clúster jerárquico.
+
+Notemos que ambos métodos sugieren tres grupos para catalogar a los Pokemons de esta muestra.
+
+El tamaño de integrantes por cluster por metodo son:
+
+| Tamaño | Clúster k-means | Clúster jerárquico |
+| --- | ---: | :---: |
+|Grupo A (Fuertes)      | 3 | 2 |  
+|Grupo B (Equilibrados) | 11 | 13 |
+|Grupo C (Debiles)      | 8 | 7 |
+
+Notemos que no hay mucha diferencia entre los grupos que se crearon y de igual forma su análisis por cada método. Por lo que esta forma de catalogarlos es idónea, si quisiéramos un pokemon que tenga muy buenas estadísticas, elegiremos a aquellos del grupo A, si queremos un Pokemon equilibrado podremos elegir uno del grupo B y si quisiéramos uno débil están los del grupo C.
+
+### Mas alla de pokemon.
+
+Aunque Pokemon sea un mundo ficticio rescatemos varias ideas que se toman del mundo real, una de ellas principales es la competencia y ver qué entrenador es más fuerte; en la vida real lo podemos ver en competencias de atletas o caballos, en donde cada uno de los individuos tienen características que los vuelven competitivos, cuantificables y por ende comparables.
+
+<div>
+<p style = 'text-align:center;'>
+<img src="https://www.agrotec.com.mx/wp-content/uploads/2020/06/apuestas-en-carrera-de-caballos.png" alt="JuveYell" width="450px">
+</p>
+
+En el ejemplo de una competencia de caballos comparariamos una especie (pokémon si lo vemos de esta forma) entre ellos para hacer un análisis y ver cual es mejor; probablemente no varían tanto los datos a comparación de dos animales diferentes, caso que nos paso en este análisis y tambien pudieramos realizar un análisis PCA, NMDS o regresión lineal múltiple.
+
+<div class="pull-right">
+<img src="https://escueladerunning.com/wp-content/uploads/2018/07/economia-de-carrera-correr-corredor-portada-tiempo-reloj-medir-mejorar-rendimiento-running.jpg" alt="JuveYell" width="300px">
+</p></div>
+
+<div class="pull-right">
+<img src="https://larepublica.pe/resizer/xfoPP8FQ5refHoE6DBr8AfB6IAY=/480x282/top/smart/arc-anglerfish-arc2-prod-gruporepublica.s3.amazonaws.com/public/XXMIUFZTKZD53GIAF3LLTYJBFU.png" alt="JuveYell" width="300px">
+</p></div>
+
+Si lo llevamos al ejemplo de una competencia de atletas, se podrían cuantificar los tiempos y puntuación para algún deporte en específico, en diferentes momentos y aunado con poder hacer mas análisis multivariados paramétricos, podriamos hacer pruebas t-student pareadas para ver comparaciones de diferentes tiempos y puntuaciones de un atleta para medir su rendimiento en una competencia.
+
+La mecánica de capturar un pokemon y que este mejore mientras más se compite junto con su entrenador, lo podemos ver reflejado con estos ejemplos y por ende replicable.
+
+
