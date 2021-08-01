@@ -294,7 +294,7 @@ fviz_nbclust(pokCluster, kmeans, method = "silhouette")
 ```
 ### Metodo estadistico Gap
 ```{r}
-# Gap statistic for hierarchical clustering
+# Estadística de brechas para estimar el número de clústeres
 fviz_nbclust(pokCluster, kmeans, method = "gap_stat")
 ```
 ```{r}
